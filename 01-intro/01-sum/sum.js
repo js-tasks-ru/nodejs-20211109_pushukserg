@@ -1,5 +1,7 @@
 function sum(a, b) {
-  if (typeof a !== 'number' || typeof b !== 'number') throw new TypeError();
+  [a, b].forEach((v) => {
+    if (typeof v !== 'number' || isNaN(v)) throw new TypeError();
+  });
 
   return a + b;
 }
