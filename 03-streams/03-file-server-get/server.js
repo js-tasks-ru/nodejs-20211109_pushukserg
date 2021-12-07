@@ -1,6 +1,6 @@
-const url = require('url');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
 const server = new http.Server();
 
@@ -10,8 +10,22 @@ server.on('request', (req, res) => {
 
   const filepath = path.join(__dirname, 'files', pathname);
 
+  req.on('error', () => {
+    res.statusCode = 500;
+    res.end();
+  });
+
   switch (req.method) {
     case 'GET':
+      if (pathname.indexOf('/') >= 0) {
+        res.statusCode = 400;
+        res.end();
+      }
+
+      fs.createReadStream(filepath).on('error', () => {
+        res.statusCode = 404;
+        res.end();
+      }).pipe(res);
 
       break;
 
