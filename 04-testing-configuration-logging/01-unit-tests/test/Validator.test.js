@@ -1,34 +1,60 @@
 const Validator = require('../Validator');
 const expect = require('chai').expect;
 
+const RULE_MIN = 10;
+const RULE_MAX = 20;
+const commonValues = {};
+const commonRules = {};
+const setCommonValuesAndRules = (strKey, strValue, fType) => {
+  if (!commonValues[fType + strKey]) {
+    commonValues[fType + strKey] = strValue;
+    commonRules[fType + strKey] = {
+      type: fType,
+      min: RULE_MIN,
+      max: RULE_MAX,
+    };
+  }
+};
+
 const getType = (byString) => byString ? 'string' : 'number';
 const getReverseType = (byString) => getType(!byString);
 const generateString = (strLength) => (new Array(strLength)).fill('a').join('');
 const valueByRulesFactory = (min, max, byString) => (key) => {
+  let value = null;
   switch (key) {
     case 'typeKeySuccess':
-      return byString ? generateString((min + max) / 2) : (min + max) / 2;
+      value = byString ? generateString((min + max) / 2) : (min + max) / 2;
+      break;
     case 'typeKeyError':
-      return byString ? (min + max) / 2 : generateString((min + max) / 2);
+      value = byString ? min - 1 : generateString(min - 1);
+      break;
     case 'beforeMin':
-      return byString ? generateString(min - 1) : min - 1;
+      value = byString ? generateString(min - 1) : min - 1;
+      break;
     case 'min':
-      return byString ? generateString(min) : min;
+      value = byString ? generateString(min) : min;
+      break;
     case 'max':
-      return byString ? generateString(max) : max;
+      value = byString ? generateString(max) : max;
+      break;
     case 'afterMax':
-      return byString ? generateString(max + 1) : max + 1;
+      value = byString ? generateString(max + 1) : max + 1;
+      break;
     case 'success':
-      return byString ? generateString((min + max) / 2) : (min + max) / 2;
+      value = byString ? generateString((min + max) / 2) : (min + max) / 2;
+      break;
   }
+  // Generate object for multiple fields test
+  setCommonValuesAndRules(key, value, getType(byString));
+  return value;
 };
 
 const blockMessageFacroty = (key, byString) => {
   switch (key) {
     case 'typeKeySuccess':
-      return `проверка типа данных: ${byString ? 'string' : 'number'}`;
+      return `проверка типа данных: ${getType(byString)}`;
     case 'typeKeyError':
-      return `проверка типа данных: ${byString ? 'number' : 'number'}`;
+      return `проверка типа данных: ${getReverseType(byString)}`;
     case 'beforeMin':
       return `проверка: ${byString ? 'строка.length' : 'число'} < min`;
     case 'min':
@@ -39,6 +65,8 @@ const blockMessageFacroty = (key, byString) => {
       return `проверка: ${byString ? 'строка.length' : 'число'} > max`;
     case 'success':
       return `проверка: min < ${byString ? 'строка.length' : 'число'} < max`;
+    default:
+      return `проверка работы с множеством полей`;
   }
 };
 
@@ -70,19 +98,42 @@ const expecting = ({key, val, errors, byString, min, max}) => {
   }
 };
 
-const checkingValidator = (byString) => (key) => {
-  it(blockMessageFacroty(key, byString), () => {
-    const min = 10;
-    const max = 20;
+const multipleExpecting = (errors) => {
+  expect(errors).to.have.length(6);
+  expect(errors[0]).to.have.property('field').and.to.be.equal('stringtypeKeyError');
+  expect(errors[1]).to.have.property('field').and.to.be.equal('stringbeforeMin');
+  expect(errors[2]).to.have.property('field').and.to.be.equal('stringafterMax');
+  expect(errors[3]).to.have.property('field').and.to.be.equal('numbertypeKeyError');
+  expect(errors[4]).to.have.property('field').and.to.be.equal('numberbeforeMin');
+  expect(errors[5]).to.have.property('field').and.to.be.equal('numberafterMax');
 
-    const validator = new Validator({[key]: {type: byString ? 'string' : 'number', min, max}});
-    const valueFactory = valueByRulesFactory(min, max, byString);
-    const val = valueFactory(key);
+  expect(errors[0]).to.have.property('error').and.to.be.equal(`expect ${commonRules[errors[0].field].type}, got ${typeof commonValues[errors[0].field]}`);
+  expect(errors[1]).to.have.property('error').and.to.be.equal(`too short, expect ${commonRules[errors[1].field].min}, got ${commonValues[errors[1].field].length}`);
+  expect(errors[2]).to.have.property('error').and.to.be.equal(`too long, expect ${commonRules[errors[2].field].max}, got ${commonValues[errors[2].field].length}`);
+  expect(errors[3]).to.have.property('error').and.to.be.equal(`expect ${commonRules[errors[3].field].type}, got ${typeof commonValues[errors[3].field]}`);
+  expect(errors[4]).to.have.property('error').and.to.be.equal(`too little, expect ${commonRules[errors[4].field].min}, got ${commonValues[errors[4].field]}`);
+  expect(errors[5]).to.have.property('error').and.to.be.equal(`too big, expect ${commonRules[errors[5].field].max}, got ${commonValues[errors[5].field]}`);
+};
 
-    const errors = validator.validate({[key]: val});
+const checkingValidator = (byString = 'multiple') => (key) => {
+  if (byString === 'multiple') {
+    it(blockMessageFacroty(), () => {
+      const validator = new Validator(commonRules);
 
-    expecting({key, val, errors, byString, min, max});
-  });
+      const errors = validator.validate(commonValues);
+
+      multipleExpecting(errors);
+    });
+  } else {
+    it(blockMessageFacroty(key, byString), () => {
+      const validator = new Validator({[key]: {type: byString ? 'string' : 'number', min: RULE_MIN, max: RULE_MAX}});
+      const valueFactory = valueByRulesFactory(RULE_MIN, RULE_MAX, byString);
+      const val = valueFactory(key);
+
+      const errors = validator.validate({[key]: val});
+      expecting({key, val, errors, byString, min: RULE_MIN, max: RULE_MAX});
+    });
+  }
 };
 
 describe('testing-configuration-logging/unit-tests', () => {
@@ -99,6 +150,7 @@ describe('testing-configuration-logging/unit-tests', () => {
 
     const stringValidate = checkingValidator(true);
     const numberValidate = checkingValidator(false);
+    const multipleValidate = checkingValidator();
 
     describe('валидатор проверяет строковые поля', () => {
       CASES.forEach((tCase) => {
@@ -109,6 +161,9 @@ describe('testing-configuration-logging/unit-tests', () => {
       CASES.forEach((tCase) => {
         numberValidate(tCase);
       });
+    });
+    describe('валидатор проверяет множество значений', () => {
+      multipleValidate();
     });
   });
 });
