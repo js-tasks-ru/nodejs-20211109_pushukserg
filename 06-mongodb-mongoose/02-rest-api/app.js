@@ -2,6 +2,7 @@ const Koa = require('koa');
 const Router = require('koa-router');
 const {productsBySubcategory, productList, productById} = require('./controllers/products');
 const {categoryList} = require('./controllers/categories');
+const {mockData} = require('./controllers/mock');
 
 const app = new Koa();
 
@@ -22,6 +23,7 @@ app.use(async (ctx, next) => {
 
 const router = new Router({prefix: '/api'});
 
+router.post('/mock-data', mockData);
 router.get('/categories', categoryList);
 router.get('/products', productsBySubcategory, productList);
 router.get('/products/:id', productById);
